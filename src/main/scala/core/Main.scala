@@ -3,6 +3,7 @@ package core
 import akka.actor.{Props, PoisonPill, ActorSystem}
 import akka.cluster.Cluster
 import akka.cluster.singleton.{ClusterSingletonProxySettings, ClusterSingletonProxy, ClusterSingletonManagerSettings, ClusterSingletonManager}
+import com.typesafe.config.ConfigFactory
 import core.cluster._
 
 import scala.concurrent.Await
@@ -10,10 +11,12 @@ import scala.util.Try
 import scala.concurrent.duration._
 
 object Main extends App with ShutdownHook {
-  implicit val system = ActorSystem("KVStore")
+  val config = ConfigFactory.load()
+  implicit val system = ActorSystem("KVStore", config)
+  val quorumSize = config.getConfig("akka.cluster").getInt("quorum-size")
 
   system.actorOf(ClusterSingletonManager.props(
-    singletonProps = Props(classOf[ClusterCoordinator]),
+    singletonProps = Props(classOf[ClusterCoordinator], 1),
     terminationMessage = PoisonPill,
     settings = ClusterSingletonManagerSettings(system)),
     name = "clusterCoordinator")

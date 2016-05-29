@@ -41,8 +41,8 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
       log.warning("Member is Removed: {} after {}", member.address, previousStatus)
 
       primaryOpt match {
-        case Some((address, ref)) if primaryIsDown(address, member.address) => electNewPrimary()
-        case Some((address, ref)) => removeSecondary(member.address)
+        case Some(Primary(address, _)) if primaryIsDown(address, member.address) => electNewPrimary()
+        case Some(Primary(address, _)) => removeSecondary(member.address)
         case None =>
       }
 

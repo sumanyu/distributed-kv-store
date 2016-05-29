@@ -2,7 +2,7 @@ package core.cluster
 
 import akka.actor.{ActorLogging, ActorRef, Props, Actor}
 import akka.cluster.Cluster
-import core.api.KVStore
+import core.api.{HashInMemoryKVStore, KVStore}
 import core.cluster.ClusterCoordinator.{JoinedSecondary, JoinedPrimary, Join}
 import core.cluster.Replica._
 
@@ -33,7 +33,7 @@ class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends
   }
 
   val secondary: Receive = {
-    _ =>
+    case v @ AnyRef =>
   }
 }
 
@@ -49,7 +49,8 @@ object Replica {
   case class Delete(key: KeyType)
   case class Contains(key: KeyType)
 
-  def props(clusterCoordinatorProxy: ActorRef): Props = {
-    Props(classOf[Replica], clusterCoordinatorProxy)
+  def props(clusterCoordinatorProxy: ActorRef,
+            kVStore: StringKVStore = new HashInMemoryKVStore[KeyType, ValueType]): Props = {
+    Props(classOf[Replica], clusterCoordinatorProxy, kVStore)
   }
 }
