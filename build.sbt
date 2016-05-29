@@ -29,6 +29,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka"           %% "akka-http-experimental"            % akkaStream,
   "com.typesafe.akka"           %% "akka-http-spray-json-experimental" % akkaStream,
 
-  "com.typesafe.scala-logging"  %% "scala-logging"  % "3.1.0"
+  "com.typesafe.scala-logging"  %% "scala-logging"  % "3.1.0",
+  "com.typesafe.akka"           %% "akka-http-spray-json-experimental" % akka
 )
 

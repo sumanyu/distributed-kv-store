@@ -42,8 +42,8 @@ object Main extends App with ShutdownHook with HttpRoute {
 
   addShutdownHook(system)
 
-  def primaryRef: Future[ActorRef] = {
-    (proxy ? GetPrimary).mapTo[ActorRef]
+  def primaryRef: Future[Option[ActorRef]] = {
+    (proxy ? GetPrimary).mapTo[Option[ActorRef]]
   }
 }
 

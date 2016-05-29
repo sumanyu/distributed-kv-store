@@ -24,18 +24,12 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
 
   def receive = {
 
-    case MemberUp(member) =>
-      log.warning("Member is Up: {}", member.address)
-      members += member
-
-    case UnreachableMember(member) =>
-      log.warning("Member detected as unreachable: {}", member)
-
-    case ReachableMember(member) =>
-      log.warning("Member came back from the dead as reachable: {}", member)
-
-    case MemberExited(member) =>
-      log.warning("Member is Exiting: {}", member.address)
+    case Join(memberAddress) =>
+      if (primaryOpt.isEmpty) {
+        setPrimary(memberAddress, sender())
+      } else {
+        sender() ! JoinedSecondary
+      }
 
     case MemberRemoved(member, previousStatus) =>
       log.warning("Member is Removed: {} after {}", member.address, previousStatus)
@@ -48,16 +42,22 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
 
       members -= member
 
+    case GetPrimary => sender ! primaryOpt.map(_.ref)
+
     case _: MemberEvent => // ignore
 
-    case Join(memberAddress) =>
-      if (primaryOpt.isEmpty) {
-        setPrimary(memberAddress, sender())
-      } else {
-        sender() ! JoinedSecondary
-      }
+    case MemberUp(member) =>
+      log.warning("Member is Up: {}", member.address)
+      members += member
 
-    case GetPrimary => sender ! primaryOpt.map(_.ref)
+    case UnreachableMember(member) =>
+      log.warning("Member detected as unreachable: {}", member)
+
+    case ReachableMember(member) =>
+      log.warning("Member came back from the dead as reachable: {}", member)
+
+    case MemberExited(member) =>
+      log.warning("Member is Exiting: {}", member.address)
   }
 
   def primaryIsDown(address: Address, memberAddress: Address) = address == memberAddress
