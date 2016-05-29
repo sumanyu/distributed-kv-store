@@ -58,7 +58,7 @@ object Main extends App with ShutdownHook with HttpRoute {
       for {
         opt <- (proxy ? GetPrimary).mapTo[Option[ActorRef]]
         primary <- opt
-        i <- 0 to 1000
+        i <- 0 to 2
       } {
         primary ! Put(i, i*i)
       }
@@ -67,7 +67,7 @@ object Main extends App with ShutdownHook with HttpRoute {
     system.scheduler.scheduleOnce(2.seconds) {
       putValues()
     }
-    
+
     def getValues() = {
       system.scheduler.scheduleOnce(5.seconds) {
         for {

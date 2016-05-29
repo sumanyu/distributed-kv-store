@@ -24,15 +24,18 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
   def receive = {
 
     case Join(memberAddress) =>
+      log.info("Replica is requesting to join the cluster: {}", memberAddress)
+
       if (primaryOpt.isEmpty) {
+        log.info("Adding replica as primary: {}", memberAddress)
         setPrimary(memberAddress, sender())
       } else {
-        sender() ! JoinedSecondary
-        replicas += memberAddress -> sender()
-        primaryOpt foreach { _.ref ! AddReplica(sender()) }
+        log.info("Adding replica as secondary: {}", memberAddress)
+        setSecondary(memberAddress)
       }
 
     case Leave(memberAddress) =>
+      log.warning("Replica is Removed: {}", memberAddress)
       memberRemoved(memberAddress)
 
     case MemberRemoved(member, previousStatus) =>
@@ -61,6 +64,7 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
   def primaryIsDown(address: Address, memberAddress: Address) = address == memberAddress
 
   def electNewPrimary() = {
+    primaryOpt = None
     replicas.headOption foreach { case ((address, ref)) =>
       replicas -= address
       setPrimary(address, ref)
@@ -73,6 +77,12 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
     primaryOpt foreach { _.ref ! InitializeReplicas(replicas.values) }
   }
 
+  def setSecondary(memberAddress: Address) = {
+    sender() ! JoinedSecondary
+    replicas += memberAddress -> sender()
+    primaryOpt foreach { _.ref ! AddReplica(sender()) }
+  }
+
   def removeSecondary(address: Address) = {
     val ref = replicas(address)
     replicas -= address
@@ -81,8 +91,12 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
 
   def memberRemoved(memberAddress: Address) = {
     primaryOpt match {
-      case Some(Primary(address, _)) if primaryIsDown(address, memberAddress) => electNewPrimary()
-      case Some(Primary(address, _)) => removeSecondary(memberAddress)
+      case Some(Primary(address, _)) if primaryIsDown(address, memberAddress) =>
+        log.debug("Primary is down. Electing new primary...")
+        electNewPrimary()
+      case Some(Primary(address, _)) =>
+        log.debug("Removing secondary...")
+        removeSecondary(memberAddress)
       case None =>
     }
   }
