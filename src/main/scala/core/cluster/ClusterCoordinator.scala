@@ -19,7 +19,8 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
 
   override def postStop(): Unit = cluster.unsubscribe(self)
 
-  var masterOpt: Option[ActorRef] = None
+  var primaryOpt: Option[(Address, ActorRef)] = None
+  var membersToReplica = Map[Address, ActorRef]()
 
   def receive = {
 
@@ -38,22 +39,30 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
 
     case MemberRemoved(member, previousStatus) =>
       log.warning("Member is Removed: {} after {}", member.address, previousStatus)
+
+
+
       members -= member
 
     case _: MemberEvent => // ignore
 
-    case Join =>
-      if (masterOpt.isEmpty) {
-        masterOpt = Some(sender())
-        masterOpt foreach { _ ! JoinedPrimary }
+    case Join(address) =>
+      if (primaryOpt.isEmpty) {
+        primaryOpt = Some((address, sender()))
+        primaryOpt foreach { _._2 ! JoinedPrimary }
       } else {
         sender() ! JoinedSecondary
       }
+
+    case GetPrimary => sender ! primaryOpt
   }
 }
 
 object ClusterCoordinator {
-  case object Join
+
+  case object GetPrimary
+
+  case class Join(address: Address)
 
   case object JoinedPrimary
   case object JoinedSecondary

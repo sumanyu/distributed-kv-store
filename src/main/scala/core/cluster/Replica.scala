@@ -1,14 +1,17 @@
 package core.cluster
 
 import akka.actor.{ActorRef, Props, Actor}
+import akka.cluster.Cluster
 import core.api.KVStore
 import core.cluster.ClusterCoordinator.{JoinedSecondary, JoinedPrimary, Join}
 import core.cluster.Replica._
 
 class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends Actor {
 
+  val cluster = Cluster(context.system)
+
   override def preStart() = {
-    clusterCoordinatorProxy ! Join
+    clusterCoordinatorProxy ! Join(cluster.selfAddress)
   }
 
   def receive = {

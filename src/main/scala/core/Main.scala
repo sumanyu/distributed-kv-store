@@ -1,10 +1,15 @@
 package core
 
 import akka.actor.{Props, PoisonPill, ActorSystem}
+import akka.cluster.Cluster
 import akka.cluster.singleton.{ClusterSingletonProxySettings, ClusterSingletonProxy, ClusterSingletonManagerSettings, ClusterSingletonManager}
 import core.cluster._
 
-object Main extends App {
+import scala.concurrent.Await
+import scala.util.Try
+import scala.concurrent.duration._
+
+object Main extends App with ShutdownHook {
   implicit val system = ActorSystem("KVStore")
 
   system.actorOf(ClusterSingletonManager.props(
@@ -19,4 +24,26 @@ object Main extends App {
     name = "clusterCoordinatorProxy")
 
   val replica = system.actorOf(Replica.props(proxy))
+
+  addShutdownHook(system)
+}
+
+trait ShutdownHook {
+  def addShutdownHook(system: ActorSystem) = Cluster(system).registerOnMemberRemoved {
+    // exit JVM when ActorSystem has been terminated
+    system.registerOnTermination(System.exit(0))
+    // shut down ActorSystem
+    system.terminate()
+
+    // In case ActorSystem shutdown takes longer than 10 seconds,
+    // exit the JVM forcefully anyway.
+    // We must spawn a separate thread to not block current thread,
+    // since that would have blocked the shutdown of the ActorSystem.
+    new Thread {
+      override def run(): Unit = {
+        if (Try(Await.ready(system.whenTerminated, 10.seconds)).isFailure)
+          System.exit(-1)
+      }
+    }.start()
+  }
 }
