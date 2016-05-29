@@ -32,15 +32,12 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
         primaryOpt foreach { _.ref ! AddReplica(sender()) }
       }
 
+    case Leave(memberAddress) =>
+      memberRemoved(memberAddress)
+
     case MemberRemoved(member, previousStatus) =>
       log.warning("Member is Removed: {} after {}", member.address, previousStatus)
-
-      primaryOpt match {
-        case Some(Primary(address, _)) if primaryIsDown(address, member.address) => electNewPrimary()
-        case Some(Primary(address, _)) => removeSecondary(member.address)
-        case None =>
-      }
-
+      memberRemoved(member.address)
       members -= member
 
     case GetPrimary => sender ! primaryOpt.map(_.ref)
@@ -81,6 +78,14 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
     replicas -= address
     primaryOpt foreach { _.ref ! RemoveReplica(ref) }
   }
+
+  def memberRemoved(memberAddress: Address) = {
+    primaryOpt match {
+      case Some(Primary(address, _)) if primaryIsDown(address, memberAddress) => electNewPrimary()
+      case Some(Primary(address, _)) => removeSecondary(memberAddress)
+      case None =>
+    }
+  }
 }
 
 object ClusterCoordinator {
@@ -90,6 +95,7 @@ object ClusterCoordinator {
   case object GetPrimary
 
   case class Join(address: Address)
+  case class Leave(address: Address)
 
   case object JoinedPrimary
   case object JoinedSecondary

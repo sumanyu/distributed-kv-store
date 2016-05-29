@@ -54,8 +54,6 @@ object Main extends App with ShutdownHook with HttpRoute {
   def testing() = {
     implicit def intToString(x: Int): String = x.toString
 
-    putValues()
-
     def putValues() = {
       for {
         opt <- (proxy ? GetPrimary).mapTo[Option[ActorRef]]
@@ -66,6 +64,10 @@ object Main extends App with ShutdownHook with HttpRoute {
       }
     }
 
+    system.scheduler.scheduleOnce(2.seconds) {
+      putValues()
+    }
+    
     def getValues() = {
       system.scheduler.scheduleOnce(5.seconds) {
         for {

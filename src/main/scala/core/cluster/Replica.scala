@@ -1,12 +1,12 @@
 package core.cluster
 
-import akka.actor.{ActorLogging, ActorRef, Props, Actor}
+import akka.actor.{Actor, ActorRef, Props}
 import akka.cluster.Cluster
 import core.api.{HashInMemoryKVStore, KVStore}
 import core.cluster.ClusterCoordinator._
 import core.cluster.Replica._
 
-class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends Actor with ActorLogging {
+class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends Actor with SupervisionStrategy {
 
   val cluster = Cluster(context.system)
   var replicaSet = Set[ActorRef]()
@@ -24,6 +24,8 @@ class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends
       log.info(s"JoinedSecondary at: ${cluster.selfAddress.toString}")
       context.become(secondary)
     }
+    case msg =>
+      log.warning(msg.toString)
   }
 
   val primary: Receive = {
@@ -31,6 +33,7 @@ class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends
     case Contains(key) => sender ! kVStore.contains(key)
 
     case Put(key, value) =>
+      log.debug("Putting value :" + key, ", " + value)
       sender ! kVStore.put(key, value)
       replicaSet.foreach { _ ! Replicate(key, Some(value)) }
 
@@ -62,6 +65,10 @@ class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends
       case Some(value) => kVStore.put(key, value)
       case None => kVStore.delete(key)
     }
+  }
+
+  override def postStop() {
+    clusterCoordinatorProxy ! Leave(cluster.selfAddress)
   }
 }
 
