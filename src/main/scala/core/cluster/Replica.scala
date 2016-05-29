@@ -1,12 +1,12 @@
 package core.cluster
 
-import akka.actor.{ActorRef, Props, Actor}
+import akka.actor.{ActorLogging, ActorRef, Props, Actor}
 import akka.cluster.Cluster
 import core.api.KVStore
 import core.cluster.ClusterCoordinator.{JoinedSecondary, JoinedPrimary, Join}
 import core.cluster.Replica._
 
-class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends Actor {
+class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends Actor with ActorLogging {
 
   val cluster = Cluster(context.system)
 
@@ -15,8 +15,14 @@ class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends
   }
 
   def receive = {
-    case JoinedPrimary => context.become(primary)
-    case JoinedSecondary => context.become(secondary)
+    case JoinedPrimary => {
+      log.info(s"JoinedPrimary at: ${cluster.selfAddress.toString}")
+      context.become(primary)
+    }
+    case JoinedSecondary => {
+      log.info(s"JoinedSecondary at: ${cluster.selfAddress.toString}")
+      context.become(secondary)
+    }
   }
 
   val primary: Receive = {
