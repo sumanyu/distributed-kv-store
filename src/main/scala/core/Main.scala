@@ -1,22 +1,32 @@
 package core
 
-import akka.actor.{Props, PoisonPill, ActorSystem}
+import akka.actor.{ActorRef, ActorSystem, PoisonPill, Props}
 import akka.cluster.Cluster
-import akka.cluster.singleton.{ClusterSingletonProxySettings, ClusterSingletonProxy, ClusterSingletonManagerSettings, ClusterSingletonManager}
+import akka.cluster.singleton.{ClusterSingletonManager, ClusterSingletonManagerSettings, ClusterSingletonProxy, ClusterSingletonProxySettings}
+import akka.http.scaladsl.Http
+import akka.pattern.ask
+import akka.stream.ActorMaterializer
 import com.typesafe.config.ConfigFactory
+import core.cluster.ClusterCoordinator.GetPrimary
 import core.cluster._
+import core.http.HttpRoute
 
-import scala.concurrent.Await
-import scala.util.Try
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
+import scala.util.Try
 
-object Main extends App with ShutdownHook {
+object Main extends App with ShutdownHook with HttpRoute {
+
   val config = ConfigFactory.load()
+
   implicit val system = ActorSystem("KVStore", config)
+  implicit val materializer = ActorMaterializer()
+  implicit val executionContext = system.dispatcher
+
   val quorumSize = config.getConfig("akka.cluster").getInt("quorum-size")
 
   system.actorOf(ClusterSingletonManager.props(
-    singletonProps = Props(classOf[ClusterCoordinator], 1),
+    singletonProps = Props(classOf[ClusterCoordinator], quorumSize),
     terminationMessage = PoisonPill,
     settings = ClusterSingletonManagerSettings(system)),
     name = "clusterCoordinator")
@@ -28,7 +38,13 @@ object Main extends App with ShutdownHook {
 
   val replica = system.actorOf(Replica.props(proxy))
 
+  val bindingFuture = Http().bindAndHandle(route, "localhost", 8080)
+
   addShutdownHook(system)
+
+  def primaryRef: Future[ActorRef] = {
+    (proxy ? GetPrimary).mapTo[ActorRef]
+  }
 }
 
 trait ShutdownHook {

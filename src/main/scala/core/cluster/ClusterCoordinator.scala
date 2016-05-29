@@ -57,7 +57,7 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
         sender() ! JoinedSecondary
       }
 
-    case GetPrimary => sender ! primaryOpt
+    case GetPrimary => sender ! primaryOpt.map(_.ref)
   }
 
   def primaryIsDown(address: Address, memberAddress: Address) = address == memberAddress
