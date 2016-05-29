@@ -22,6 +22,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka"           %% "akka-slf4j" % akka,
   "com.typesafe.akka"           %% "akka-remote" % akka,
   "com.typesafe.akka"           %% "akka-cluster" % akka,
+  "com.typesafe.akka"           %% "akka-cluster-tools" % akka,
 
   "com.typesafe.akka"           %% "akka-stream-experimental"          % akkaStream,
   "com.typesafe.akka"           %% "akka-http-core-experimental"       % akkaStream,

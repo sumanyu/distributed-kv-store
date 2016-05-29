@@ -1,2 +1,5 @@
 package core.cluster
 
+class Replicator {
+
+}

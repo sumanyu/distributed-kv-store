@@ -3,11 +3,11 @@ package core.cluster
 import akka.actor._
 import akka.cluster.ClusterEvent._
 import akka.cluster.{Cluster, Member}
-import core.cluster.Controller._
+import core.cluster.ClusterCoordinator._
 
 //Performs leader election / split brain strategy
 
-class Controller(quorumSize: Int) extends Actor with ActorLogging {
+class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
 
   val cluster = Cluster(context.system)
   var members: Set[Member] = Set.empty[Member]
@@ -18,6 +18,8 @@ class Controller(quorumSize: Int) extends Actor with ActorLogging {
   }
 
   override def postStop(): Unit = cluster.unsubscribe(self)
+
+  var masterOpt: Option[ActorRef] = None
 
   def receive = {
 
@@ -40,19 +42,27 @@ class Controller(quorumSize: Int) extends Actor with ActorLogging {
       members -= member
 
     case _: MemberEvent => // ignore
+
+    case Join =>
+      if (masterOpt.isEmpty) {
+        masterOpt = Some(sender())
+        masterOpt foreach { _ ! JoinedPrimary }
+      } else {
+        sender() ! JoinedSecondary
+      }
   }
 }
 
-object Controller {
-//  case object Join
-//
-//  case object JoinedPrimary
-//  case object JoinedSecondary
-//
-//  case class Replicas(replicas: Set[ActorRef])
+object ClusterCoordinator {
+  case object Join
+
+  case object JoinedPrimary
+  case object JoinedSecondary
+
+  case class Replicas(replicas: Set[ActorRef])
 
   def props(): Props = {
-    Props(classOf[Controller])
+    Props(classOf[ClusterCoordinator])
   }
 }
 
