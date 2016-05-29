@@ -1,4 +1,10 @@
+package core
+
+import akka.actor.ActorSystem
 
 object Main extends App {
-  println("Hello, world")
+  implicit val system = ActorSystem("KVStore")
+
+
+
 }
