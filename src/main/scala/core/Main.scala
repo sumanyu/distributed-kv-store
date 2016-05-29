@@ -8,6 +8,7 @@ import akka.pattern.ask
 import akka.stream.ActorMaterializer
 import com.typesafe.config.ConfigFactory
 import core.cluster.ClusterCoordinator.GetPrimary
+import core.cluster.Replica.{Get, Put}
 import core.cluster._
 import core.http.HttpRoute
 
@@ -42,10 +43,40 @@ object Main extends App with ShutdownHook with HttpRoute {
   val port = config.getInt("http.port")
   val bindingFuture = Http().bindAndHandle(route, host, port)
 
+  testing()
+
   addShutdownHook(system)
 
   def primaryRef: Future[Option[ActorRef]] = {
     (proxy ? GetPrimary).mapTo[Option[ActorRef]]
+  }
+
+  def testing() = {
+    implicit def intToString(x: Int): String = x.toString
+
+    putValues()
+
+    def putValues() = {
+      for {
+        opt <- (proxy ? GetPrimary).mapTo[Option[ActorRef]]
+        primary <- opt
+        i <- 0 to 1000
+      } {
+        primary ! Put(i, i*i)
+      }
+    }
+
+    def getValues() = {
+      system.scheduler.scheduleOnce(5.seconds) {
+        for {
+          opt <- (proxy ? GetPrimary).mapTo[Option[ActorRef]]
+          primary <- opt
+          i <- 0 to 1000
+        } {
+          (primary ? Get(i)).mapTo[String].foreach(println)
+        }
+      }
+    }
   }
 }
 
