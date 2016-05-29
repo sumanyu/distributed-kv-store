@@ -70,8 +70,9 @@ object Main extends App with ShutdownHook with HttpRoute {
           opt <- (proxy ? GetPrimary).mapTo[Option[ActorRef]]
           primary <- opt
           i <- 0 to 1000
+          v <- (primary ? Get(i)).mapTo[String]
         } {
-          (primary ? Get(i)).mapTo[String].foreach(println)
+          println(v)
         }
       }
     }
