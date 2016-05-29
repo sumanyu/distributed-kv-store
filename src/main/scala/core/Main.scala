@@ -38,7 +38,9 @@ object Main extends App with ShutdownHook with HttpRoute {
 
   val replica = system.actorOf(Replica.props(proxy))
 
-  val bindingFuture = Http().bindAndHandle(route, "localhost", 8080)
+  val host = config.getString("http.interface")
+  val port = config.getInt("http.port")
+  val bindingFuture = Http().bindAndHandle(route, host, port)
 
   addShutdownHook(system)
 
