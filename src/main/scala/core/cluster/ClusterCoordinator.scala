@@ -38,7 +38,6 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
 
     case MemberRemoved(member, previousStatus) =>
       log.warning("Member is Removed: {} after {}", member.address, previousStatus)
-
       members -= member
 
     case _: MemberEvent => // ignore
