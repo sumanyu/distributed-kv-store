@@ -6,6 +6,8 @@ import core.api.{HashInMemoryKVStore, KVStore}
 import core.cluster.ClusterCoordinator._
 import core.cluster.Replica._
 
+import scala.concurrent.Future
+
 class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends Actor with SupervisionStrategy {
 
   val cluster = Cluster(context.system)
@@ -29,12 +31,18 @@ class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends
   }
 
   val primary: Receive = {
-    case Get(key) => sender ! kVStore.get(key)
+    case Get(key) =>
+      val returnValue = kVStore.get(key)
+
+      if (returnValue == null)
+        sender ! Future.failed(new NoSuchElementException)
+      else
+        sender ! returnValue
+
     case Contains(key) => sender ! kVStore.contains(key)
 
     case Put(key, value) =>
-      log.debug("Putting value :" + key, ", " + value)
-      sender ! kVStore.put(key, value)
+      sender() ! kVStore.put(key, value)
       replicaSet.foreach { _ ! Replicate(key, Some(value)) }
 
     case Delete(key) =>
