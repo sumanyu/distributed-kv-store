@@ -19,8 +19,8 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
 
   override def postStop(): Unit = cluster.unsubscribe(self)
 
-  var primaryOpt: Option[(Address, ActorRef)] = None
-  var membersToReplica = Map[Address, ActorRef]()
+  var primaryOpt: Option[Primary] = None
+  var replicas = Map[Address, ActorRef]()
 
   def receive = {
 
@@ -40,25 +40,51 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
     case MemberRemoved(member, previousStatus) =>
       log.warning("Member is Removed: {} after {}", member.address, previousStatus)
 
-
+      primaryOpt match {
+        case Some((address, ref)) if primaryIsDown(address, member.address) => electNewPrimary()
+        case Some((address, ref)) => removeSecondary(member.address)
+        case None =>
+      }
 
       members -= member
 
     case _: MemberEvent => // ignore
 
-    case Join(address) =>
+    case Join(memberAddress) =>
       if (primaryOpt.isEmpty) {
-        primaryOpt = Some((address, sender()))
-        primaryOpt foreach { _._2 ! JoinedPrimary }
+        setPrimary(memberAddress, sender())
       } else {
         sender() ! JoinedSecondary
       }
 
     case GetPrimary => sender ! primaryOpt
   }
+
+  def primaryIsDown(address: Address, memberAddress: Address) = address == memberAddress
+
+  def electNewPrimary() = {
+    replicas.headOption foreach { case ((address, ref)) =>
+      replicas -= address
+      setPrimary(address, ref)
+    }
+  }
+
+  def setPrimary(address: Address, ref: ActorRef) = {
+    primaryOpt = Some(Primary(address, ref))
+    primaryOpt foreach { _.ref ! JoinedPrimary }
+    primaryOpt foreach { _.ref ! AddReplicas(replicas.values) }
+  }
+
+  def removeSecondary(address: Address) = {
+    val ref = replicas(address)
+    replicas -= address
+    primaryOpt foreach { _.ref ! RemoveReplica(ref) }
+  }
 }
 
 object ClusterCoordinator {
+
+  case class Primary(address: Address, ref: ActorRef)
 
   case object GetPrimary
 
@@ -67,7 +93,8 @@ object ClusterCoordinator {
   case object JoinedPrimary
   case object JoinedSecondary
 
-  case class Replicas(replicas: Set[ActorRef])
+  case class AddReplicas(replicas: Iterable[ActorRef])
+  case class RemoveReplica(replica: ActorRef)
 
   def props(): Props = {
     Props(classOf[ClusterCoordinator])
