@@ -3,12 +3,13 @@ package core.cluster
 import akka.actor.{ActorLogging, ActorRef, Props, Actor}
 import akka.cluster.Cluster
 import core.api.{HashInMemoryKVStore, KVStore}
-import core.cluster.ClusterCoordinator.{JoinedSecondary, JoinedPrimary, Join}
+import core.cluster.ClusterCoordinator._
 import core.cluster.Replica._
 
 class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends Actor with ActorLogging {
 
   val cluster = Cluster(context.system)
+  var replicaSet = Set[ActorRef]()
 
   override def preStart() = {
     clusterCoordinatorProxy ! Join(cluster.selfAddress)
@@ -27,13 +28,40 @@ class Replica(clusterCoordinatorProxy: ActorRef, kVStore: StringKVStore) extends
 
   val primary: Receive = {
     case Get(key) => sender ! kVStore.get(key)
-    case Put(key, value) => sender ! kVStore.put(key, value)
-    case Delete(key) => sender ! kVStore.delete(key)
     case Contains(key) => sender ! kVStore.contains(key)
+
+    case Put(key, value) =>
+      sender ! kVStore.put(key, value)
+      replicaSet.foreach { _ ! Replicate(key, Some(value)) }
+
+    case Delete(key) =>
+      sender ! kVStore.delete(key)
+      replicaSet.foreach { _ ! Replicate(key, None) }
+
+    case InitializeReplicas(replicas) =>
+      sendInitialStateToReplicas(replicas)
+      replicaSet = replicas.toSet
+
+    case AddReplica(replica) =>
+      sendInitialStateToReplicas(Iterable(replica))
+      replicaSet += replica
+
+    case RemoveReplica(replica) =>
+      replicaSet -= replica
+  }
+
+  def sendInitialStateToReplicas(replicas: Iterable[ActorRef]) = {
+    replicas.foreach { replica =>
+      replica ! RecoverFromSnapshot(kVStore.state)
+    }
   }
 
   val secondary: Receive = {
-    case v @ AnyRef =>
+    case RecoverFromSnapshot(state) => state.foreach { case (key, value) => kVStore.put(key, value) }
+    case Replicate(key, valueOpt) => valueOpt match {
+      case Some(value) => kVStore.put(key, value)
+      case None => kVStore.delete(key)
+    }
   }
 }
 
@@ -48,6 +76,10 @@ object Replica {
   case class Put(key: KeyType, value: ValueType)
   case class Delete(key: KeyType)
   case class Contains(key: KeyType)
+
+  case class RecoverFromSnapshot(state: IndexedSeq[(KeyType, ValueType)])
+
+  case class Replicate(key: KeyType, value: Option[ValueType])
 
   def props(clusterCoordinatorProxy: ActorRef,
             kVStore: StringKVStore = new HashInMemoryKVStore[KeyType, ValueType]): Props = {

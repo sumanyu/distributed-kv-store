@@ -11,7 +11,7 @@ This is a naive attempt at writing a simple, distributed key value store. My mai
 
 ## Design
 
-I drew heavy inspiration from MongoDB's and Kafka's master / slave setup. There will be one primary and many slaves. All reads / writes will go to the primary. The slaves will then replicate the operations.
+I drew heavy inspiration from MongoDB's replica sets and Kafka's partition leader/follower setup. There will be one primary and many slaves. All reads / writes will go to the primary. The slaves will then replicate the operations.
 
 #### Basic CRUD operations. Get / Insert / Delete
 
@@ -23,7 +23,7 @@ User can query via the HTTP interface from any of the nodes. A proxy will figure
 
 #### Strongly consistent (as consistent as it can be)
 
-All reads / writes will go to the primary. This is to avoid presenting an inconsistent view of the world. We can relax this by allowing the proxy to read from any of the members in the replica set.
+All reads / writes will go to the primary. Write requirement makes sense. Reads should also come from primary because slaves might still be catching up. We can relax the read requirement this by allowing the proxy to read from any of the members in the replica set.
 
 #### Distributed and fault tolerant
 

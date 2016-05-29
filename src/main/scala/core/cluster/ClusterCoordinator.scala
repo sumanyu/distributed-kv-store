@@ -6,7 +6,6 @@ import akka.cluster.{Cluster, Member}
 import core.cluster.ClusterCoordinator._
 
 //Performs leader election / split brain strategy
-
 class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
 
   val cluster = Cluster(context.system)
@@ -29,6 +28,8 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
         setPrimary(memberAddress, sender())
       } else {
         sender() ! JoinedSecondary
+        replicas += memberAddress -> sender()
+        primaryOpt foreach { _.ref ! AddReplica(sender()) }
       }
 
     case MemberRemoved(member, previousStatus) =>
@@ -72,7 +73,7 @@ class ClusterCoordinator(quorumSize: Int) extends Actor with ActorLogging {
   def setPrimary(address: Address, ref: ActorRef) = {
     primaryOpt = Some(Primary(address, ref))
     primaryOpt foreach { _.ref ! JoinedPrimary }
-    primaryOpt foreach { _.ref ! AddReplicas(replicas.values) }
+    primaryOpt foreach { _.ref ! InitializeReplicas(replicas.values) }
   }
 
   def removeSecondary(address: Address) = {
@@ -93,7 +94,8 @@ object ClusterCoordinator {
   case object JoinedPrimary
   case object JoinedSecondary
 
-  case class AddReplicas(replicas: Iterable[ActorRef])
+  case class InitializeReplicas(replicas: Iterable[ActorRef])
+  case class AddReplica(replica: ActorRef)
   case class RemoveReplica(replica: ActorRef)
 
   def props(): Props = {
